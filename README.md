@@ -1,4 +1,4 @@
-"""
+
 Kite Historical Downloader — GUI
 =================================
 Dark terminal-style GUI for bulk historical data download from Zerodha Kite.
@@ -13,7 +13,8 @@ Requirements:
     pip install PyQt5 pandas requests python-dateutil
 
 Run:
-    python kite_downloader_gui.py
-"""
+ <pre>
+     python kite_downloader_gui.py
+</pre>
 
 UI design boilerplate assisted by AI
