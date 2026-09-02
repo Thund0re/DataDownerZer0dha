@@ -1,0 +1,11 @@
+{
+  "user_id": "",
+  "enctoken": "",
+  "symbols": "",
+  "exchange": "NSE",
+  "interval": "day",
+  "from_date": "2020-01-01",
+  "to_date": "2026-08-29",
+  "out_dir": "C:\\Users\\Tushar\\kite_data",
+  "merge": true
+}
