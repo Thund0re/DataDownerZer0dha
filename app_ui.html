@@ -1,0 +1,1580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DataDowner Pro — TradingView Pro Charting</title>
+    <!-- Lightweight Charts (Local with CDN fallback) -->
+    <script src="/static/lightweight-charts.standalone.js"></script>
+    <script>
+        if (typeof LightweightCharts === 'undefined') {
+            document.write('<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.1/dist/lightweight-charts.standalone.production.js"><\/script>');
+        }
+    </script>
+    <style>
+        :root {
+            --bg: #131722; --sidebar: #1e222d; --toolbar: #1e222d; --border: #2a2e39;
+            --text: #d1d4dc; --text-dim: #787b86; --text-bright: #f0f3fa;
+            --primary: #2962ff; --primary-hover: #1e53e5;
+            --up: #089981; --down: #f23645;
+            --input-bg: #131722; --input-border: #363c4e; --active-row: #2a2e39;
+        }
+        body.light-theme {
+            --bg: #ffffff; --sidebar: #f0f3fa; --toolbar: #f8fafc; --border: #e0e3eb;
+            --text: #131722; --text-dim: #787b86; --text-bright: #000000;
+            --primary: #2962ff; --primary-hover: #1e53e5;
+            --up: #089981; --down: #f23645;
+            --input-bg: #ffffff; --input-border: #cbd5e1; --active-row: #e2e8f0;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
+            background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+            user-select: none;
+        }
+
+        /* Top TradingView Master Bar */
+        header {
+            background: var(--toolbar); border-bottom: 1px solid var(--border);
+            height: 44px; display: flex; align-items: center; justify-content: space-between;
+            padding: 0 12px; gap: 8px; flex-shrink: 0; z-index: 20;
+        }
+        .header-left, .header-center, .header-right { display: flex; align-items: center; gap: 6px; }
+        .logo { font-size: 15px; font-weight: 800; color: #38bdf8; display: flex; align-items: center; gap: 6px; margin-right: 6px; }
+
+        .mode-toggle { display: flex; background: var(--input-bg); border: 1px solid var(--border); border-radius: 4px; padding: 2px; }
+        .mode-btn {
+            background: transparent; border: none; color: var(--text-dim); padding: 4px 10px;
+            font-weight: 700; font-size: 11px; border-radius: 3px; cursor: pointer; transition: 0.15s;
+        }
+        .mode-btn.active { background: var(--primary); color: #fff; }
+
+        .auth-field { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: var(--text-dim); }
+        .auth-field input {
+            background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 4px;
+            padding: 4px 8px; color: var(--text); font-size: 11px; outline: none;
+        }
+        .enc-wrapper { position: relative; display: flex; align-items: center; }
+        .enc-wrapper input { width: 190px; padding-right: 24px; }
+        .enc-eye { position: absolute; right: 6px; cursor: pointer; color: var(--text-dim); }
+
+        .btn {
+            background: var(--primary); color: #fff; border: none; border-radius: 4px;
+            padding: 5px 10px; font-weight: 600; font-size: 11px; cursor: pointer; transition: 0.15s;
+            display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+        }
+        .btn:hover { background: var(--primary-hover); }
+        .btn-success { background: var(--up); } .btn-success:hover { background: #077d69; }
+        .btn-danger { background: var(--down); } .btn-danger:hover { background: #cf2230; }
+        .btn-neu { background: transparent; border: 1px solid var(--border); color: var(--text); }
+        .btn-neu:hover { background: rgba(255,255,255,0.06); border-color: var(--text-dim); }
+        .badge-ok { background: rgba(8, 153, 129, 0.2); color: #26a69a; border: 1px solid #089981; padding: 3px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; }
+        .badge-warn { background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid #d97706; padding: 3px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; }
+        .badge-err { background: rgba(242, 54, 69, 0.2); color: #f23645; border: 1px solid #dc2626; padding: 3px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; }
+
+        /* Main Workspace */
+        main { flex: 1; display: grid; overflow: hidden; position: relative; }
+        .view-panel { display: none; height: 100%; width: 100%; }
+        .view-panel.active { display: grid; }
+
+        /* Downloader View */
+        #view-downloader { grid-template-columns: 340px 1fr; grid-template-rows: 1fr 200px; }
+        .dl-sidebar {
+            grid-row: 1 / 3; background: var(--sidebar); border-right: 1px solid var(--border);
+            padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;
+        }
+        .card { background: var(--input-bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px; }
+        .card-title { font-size: 10px; font-weight: 800; color: #a5b4fc; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; }
+
+        .preset-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+        .preset-btn {
+            background: rgba(41, 98, 255, 0.12); border: 1px solid rgba(41, 98, 255, 0.4);
+            color: #82b1ff; border-radius: 12px; padding: 4px 6px; font-size: 11px; font-weight: 700; cursor: pointer; text-align: center;
+        }
+        .preset-btn:hover { background: var(--primary); color: #fff; }
+
+        .queue-box { max-height: 120px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; }
+        .queue-item { display: flex; justify-content: space-between; padding: 4px 8px; border-bottom: 1px solid var(--border); font-size: 11px; }
+
+        .form-grid { display: grid; grid-template-columns: 75px 1fr; gap: 6px; align-items: center; font-size: 11px; font-weight: 600; }
+        .form-grid input, .form-grid select {
+            background: var(--sidebar); border: 1px solid var(--input-border); border-radius: 4px; padding: 4px 6px; color: var(--text);
+        }
+
+        .dl-browser { padding: 12px; display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+        .filter-bar { display: flex; gap: 8px; align-items: center; }
+        .filter-bar input, .filter-bar select {
+            background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 4px; padding: 6px 10px; color: var(--text); font-size: 12px;
+        }
+
+        .table-wrap { flex: 1; overflow: auto; border: 1px solid var(--border); border-radius: 6px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: left; }
+        th { background: var(--sidebar); padding: 7px 10px; color: var(--text-dim); position: sticky; top: 0; font-weight: 700; border-bottom: 1px solid var(--border); }
+        td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
+        tr:hover { background: var(--active-row); }
+
+        .dl-dock {
+            grid-column: 2; background: var(--sidebar); border-top: 1px solid var(--border);
+            padding: 8px 14px; display: flex; flex-direction: column; gap: 6px; overflow: hidden;
+        }
+        .progress-bar-bg { background: var(--input-bg); border-radius: 4px; height: 14px; overflow: hidden; border: 1px solid var(--border); }
+        .progress-bar-fill { background: linear-gradient(90deg, #2962ff, #089981); height: 100%; width: 0%; transition: width 0.3s; }
+
+        /* TradingView Pro Charting Mode */
+        #view-analyze {
+            grid-template-columns: 46px 1fr;
+            grid-template-rows: 38px 1fr 28px;
+            background: var(--bg);
+        }
+
+        /* Top TV Subheader Bar */
+        .tv-topbar {
+            grid-column: 1 / 3; grid-row: 1;
+            background: var(--toolbar); border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between; padding: 0 10px;
+        }
+        .tv-bar-group { display: flex; align-items: center; gap: 6px; }
+        .tv-sym-pill {
+            display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 13px; color: var(--text-bright);
+            padding: 4px 10px; border-radius: 4px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); cursor: pointer;
+        }
+        .tv-pill {
+            background: transparent; border: none; color: var(--text-dim); padding: 4px 8px;
+            font-size: 12px; font-weight: 700; border-radius: 3px; cursor: pointer;
+        }
+        .tv-pill:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+        .tv-pill.active { background: var(--primary); color: #fff; }
+
+        /* Left TradingView Vertical Tool Dock */
+        .tv-tools-dock {
+            grid-column: 1; grid-row: 2;
+            background: var(--toolbar); border-right: 1px solid var(--border);
+            display: flex; flex-direction: column; align-items: center; padding: 6px 0; gap: 4px; z-index: 10;
+        }
+        .tv-tool-btn {
+            width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+            border-radius: 4px; cursor: pointer; color: var(--text-dim); font-size: 15px; transition: 0.15s;
+        }
+        .tv-tool-btn:hover { background: rgba(255,255,255,0.08); color: var(--text-bright); }
+        .tv-tool-btn.active { background: var(--primary); color: #fff; }
+        .tv-tool-sep { width: 24px; height: 1px; background: var(--border); margin: 4px 0; }
+
+        /* Chart Canvas Area */
+        .tv-canvas-container {
+            grid-column: 2; grid-row: 2; position: relative; width: 100%; height: 100%; overflow: hidden;
+        }
+        #chart-main { width: 100%; height: 100%; }
+        #svg-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+        .drawing-active { cursor: crosshair !important; }
+
+        /* TradingView Interactive Top-Left Legend */
+        .tv-legend {
+            position: absolute; top: 8px; left: 12px; z-index: 8;
+            display: flex; flex-direction: column; gap: 3px; pointer-events: none;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+        }
+        .tv-legend-main {
+            display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600;
+        }
+        .tv-legend-sym { font-weight: 800; font-size: 13px; color: var(--text-bright); }
+        .tv-legend-ohlc { display: flex; gap: 8px; color: var(--text-dim); }
+        .tv-legend-ohlc span b { color: var(--text-bright); font-weight: 600; }
+        .tv-legend-change.up { color: var(--up); }
+        .tv-legend-change.down { color: var(--down); }
+
+        .tv-legend-indicators {
+            display: flex; flex-direction: column; gap: 2px; font-size: 11px; font-weight: 600;
+        }
+        .tv-ind-row {
+            display: flex; align-items: center; gap: 6px; pointer-events: auto;
+        }
+        .tv-ind-name { color: var(--text-bright); }
+        .tv-ind-val { font-weight: 700; }
+        .tv-ind-action { cursor: pointer; color: var(--text-dim); font-size: 12px; margin-left: 2px; }
+        .tv-ind-action:hover { color: var(--text-bright); }
+
+        /* TradingView Bottom Date Range Bar */
+        .tv-bottombar {
+            grid-column: 1 / 3; grid-row: 3;
+            background: var(--toolbar); border-top: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between; padding: 0 10px; font-size: 11px; color: var(--text-dim);
+        }
+
+        /* Modal Dialogs */
+        .modal-backdrop {
+            display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(3px); z-index: 100;
+            align-items: center; justify-content: center;
+        }
+        .modal-backdrop.active { display: flex; }
+        .modal-box {
+            background: var(--sidebar); border: 1px solid var(--border); border-radius: 8px;
+            width: 640px; max-height: 82vh; display: flex; flex-direction: column; overflow: hidden;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+        .modal-header {
+            padding: 12px 16px; border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .modal-title { font-size: 14px; font-weight: 800; color: var(--text-bright); }
+        .modal-close { font-size: 18px; cursor: pointer; color: var(--text-dim); }
+        .modal-close:hover { color: var(--text-bright); }
+        .modal-search { padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; flex-direction: column; }
+        .modal-search input {
+            background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 4px;
+            padding: 8px 12px; color: var(--text); font-size: 13px; width: 100%;
+        }
+        .modal-categories { display: flex; gap: 5px; flex-wrap: wrap; }
+        .modal-cat-pill {
+            background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 12px;
+            padding: 3px 8px; font-size: 11px; font-weight: 700; cursor: pointer; color: var(--text-dim);
+        }
+        .modal-cat-pill.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .modal-list { flex: 1; overflow-y: auto; padding: 10px 16px; display: flex; flex-direction: column; gap: 6px; }
+        .modal-item {
+            background: var(--input-bg); border: 1px solid var(--border); border-radius: 6px;
+            padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; cursor: pointer;
+        }
+        .modal-item:hover { border-color: var(--primary); }
+        .modal-item-desc { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <div class="logo">⚡ DataDowner Pro</div>
+            <div class="mode-toggle">
+                <button class="mode-btn" id="btn-mode-dl" onclick="switchMode('dl')">📥 Downloader</button>
+                <button class="mode-btn active" id="btn-mode-an" onclick="switchMode('an')">📈 TradingView Chart</button>
+            </div>
+        </div>
+
+        <div class="header-center">
+            <div class="auth-field">
+                <span>User ID:</span>
+                <input type="text" id="cfg-uid" placeholder="DT0736" style="width:75px;" onchange="saveCurrentSettings()" onblur="saveCurrentSettings()">
+            </div>
+            <div class="auth-field">
+                <span>enctoken:</span>
+                <div class="enc-wrapper">
+                    <input type="password" id="cfg-enc" placeholder="Paste Kite enctoken..." onchange="saveCurrentSettings()" onblur="saveCurrentSettings()">
+                    <span class="enc-eye" onclick="togglePassword()">👁</span>
+                </div>
+            </div>
+            <button class="btn btn-neu" id="btn-verify-token" onclick="checkTokenStatus(true)">🔑 Verify</button>
+            <span class="badge-warn" id="token-badge" style="cursor:pointer;" onclick="showTokenHelp()">Checking...</span>
+            <button class="btn btn-neu" onclick="fetchInstruments(false)">⚡ Master (7d)</button>
+            <span class="badge-warn" id="cache-badge">Checking cache...</span>
+        </div>
+
+        <div class="header-right">
+            <button class="btn btn-neu" id="theme-btn" onclick="toggleTheme()">☀️ Light</button>
+        </div>
+    </header>
+
+    <main>
+        <!-- 1. Downloader Mode -->
+        <div class="view-panel" id="view-downloader">
+            <div class="dl-sidebar">
+                <div class="card">
+                    <div class="card-title">Quick Add</div>
+                    <div style="display:flex; gap:6px;">
+                        <input type="text" id="qa-input" placeholder="256265 or RELIANCE" style="flex:1;" onkeydown="if(event.key==='Enter')quickAdd()">
+                        <select id="qa-exch" style="width:70px;"><option>NSE</option><option>BSE</option><option>NFO</option><option>MCX</option></select>
+                        <button class="btn btn-success" onclick="quickAdd()">+</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">Index Presets</div>
+                    <div class="preset-grid">
+                        <div class="preset-btn" onclick="addPreset('Nifty 50', 'NSE', 256265)">Nifty 50</div>
+                        <div class="preset-btn" onclick="addPreset('BankNifty', 'NSE', 260105)">BankNifty</div>
+                        <div class="preset-btn" onclick="addPreset('FinNifty', 'NSE', 257801)">FinNifty</div>
+                        <div class="preset-btn" onclick="addPreset('India VIX', 'NSE', 264969)">India VIX</div>
+                        <div class="preset-btn" onclick="addPreset('MidNifty', 'NSE', 288009)">MidNifty</div>
+                        <div class="preset-btn" onclick="addPreset('Sensex', 'BSE', 265)">Sensex</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <div class="card-title" style="margin-bottom:0;">Download Queue (<span id="queue-count">0</span>)</div>
+                        <button class="btn btn-neu" style="padding:2px 8px; font-size:10px;" onclick="clearQueue()">Clear</button>
+                    </div>
+                    <div class="queue-box" id="queue-list"></div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">Download Config</div>
+                    <div class="form-grid">
+                        <span>Interval:</span>
+                        <select id="cfg-interval" onchange="saveCurrentSettings()">
+                            <option value="minute">minute</option>
+                            <option value="3minute">3minute</option>
+                            <option value="5minute">5minute</option>
+                            <option value="15minute">15minute</option>
+                            <option value="60minute">60minute</option>
+                            <option value="day">day</option>
+                        </select>
+                        <span>From:</span><input type="date" id="cfg-from" value="2015-01-01">
+                        <span>To:</span><input type="date" id="cfg-to">
+                        <span>Threads:</span><input type="number" id="cfg-threads" value="5" min="1" max="16" onchange="saveCurrentSettings()">
+                        <span>Delay (s):</span><input type="number" id="cfg-delay" value="0.10" step="0.05" min="0" onchange="saveCurrentSettings()">
+                    </div>
+                    <div style="margin-top:8px; font-size:11px;">
+                        <label><input type="checkbox" id="cfg-merge" checked> Merge all into one CSV</label>
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:8px;">
+                    <button class="btn btn-success" id="btn-start" style="flex:1; height:36px;" onclick="startDownload()">▶ Start Download</button>
+                    <button class="btn btn-danger" id="btn-stop" style="width:70px; height:36px;" onclick="stopDownload()" disabled>⏹ Stop</button>
+                </div>
+                <button class="btn btn-neu" onclick="openFolder()">📂 Open kite_data Folder</button>
+            </div>
+
+            <div class="dl-browser">
+                <div class="filter-bar">
+                    <input type="text" id="srch-q" placeholder="🔍 Search symbol or company..." style="flex:1;" oninput="searchInstruments()">
+                    <select id="srch-exch" onchange="searchInstruments()">
+                        <option value="All">All Exchanges</option><option>NSE</option><option>BSE</option><option>NFO</option><option>MCX</option>
+                    </select>
+                    <select id="srch-type" onchange="searchInstruments()">
+                        <option value="All">All Types</option><option>EQ</option><option>FUT</option><option>CE</option><option>PE</option><option>INDEX</option>
+                    </select>
+                </div>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>Symbol</th><th>Exchange</th><th>Name</th><th>Type</th><th>Token</th><th>Action</th></tr>
+                        </thead>
+                        <tbody id="inst-tbody"></tbody>
+                    </table>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-dim);">
+                    <span id="match-count">Search symbol or click index presets</span>
+                </div>
+            </div>
+
+            <div class="dl-dock">
+                <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:700;">
+                    <span id="status-title">Download Status</span>
+                    <span id="overall-percent">0%</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="overall-fill"></div>
+                </div>
+                <div class="table-wrap" style="flex:1;">
+                    <table>
+                        <thead>
+                            <tr><th>Symbol</th><th>Exchange</th><th>Interval</th><th>Status</th><th>Chunks</th><th>Rows</th></tr>
+                        </thead>
+                        <tbody id="status-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. TradingView Pro Charting Mode -->
+        <div class="view-panel active" id="view-analyze">
+            <!-- Top TradingView Subheader Bar -->
+            <div class="tv-topbar">
+                <div class="tv-bar-group">
+                    <div class="tv-sym-pill" onclick="openSymbolDialog()">
+                        <span id="tv-sym-label">Select Symbol</span>
+                        <span style="font-size:10px; color:var(--text-dim);">▼</span>
+                    </div>
+
+                    <!-- Timeframes -->
+                    <div class="tv-bar-group" id="tf-bar" style="margin-left:8px;">
+                        <button class="tv-pill" onclick="changeTF('1m')">1m</button>
+                        <button class="tv-pill" onclick="changeTF('3m')">3m</button>
+                        <button class="tv-pill" onclick="changeTF('5m')">5m</button>
+                        <button class="tv-pill" onclick="changeTF('15m')">15m</button>
+                        <button class="tv-pill" onclick="changeTF('30m')">30m</button>
+                        <button class="tv-pill" onclick="changeTF('1h')">1h</button>
+                        <button class="tv-pill active" onclick="changeTF('1D')">1D</button>
+                        <button class="tv-pill" onclick="changeTF('1W')">1W</button>
+                        <button class="tv-pill" onclick="changeTF('1M')">1M</button>
+                    </div>
+
+                    <div style="width:1px; height:20px; background:var(--border); margin:0 4px;"></div>
+
+                    <!-- Chart Style Selector -->
+                    <select id="tv-chart-style" style="background:transparent; border:none; color:var(--text); font-size:12px; font-weight:700; cursor:pointer;" onchange="changeChartStyle(this.value)">
+                        <option value="candles">🕯️ Candles</option>
+                        <option value="heikin_ashi">🏮 Heikin Ashi</option>
+                        <option value="line">📈 Line</option>
+                        <option value="area">🏔️ Area</option>
+                    </select>
+
+                    <div style="width:1px; height:20px; background:var(--border); margin:0 4px;"></div>
+
+                    <!-- Indicators Button like TV -->
+                    <button class="btn btn-neu" style="padding:4px 10px; font-size:12px;" onclick="openIndicatorModal()">
+                        <span style="color:#2962ff; font-weight:900;">fx</span> Indicators (<span id="tv-ind-count">2</span>)
+                    </button>
+                </div>
+
+                <div class="tv-bar-group">
+                    <button class="btn btn-neu" style="padding:4px 8px; font-size:11px;" onclick="quickLivePrompt()">⚡ Live Fetch</button>
+                    <span id="bar-count-msg" style="font-size:11px; color:var(--text-dim);">Ready</span>
+                </div>
+            </div>
+
+            <!-- Left TradingView Drawing Dock -->
+            <div class="tv-tools-dock">
+                <div class="tv-tool-btn active" id="tool-cursor" title="Crosshair" onclick="setDrawMode(null, this)">🎯</div>
+                <div class="tv-tool-sep"></div>
+                <div class="tv-tool-btn" id="tool-trendline" title="Trendline" onclick="setDrawMode('trendline', this)">📏</div>
+                <div class="tv-tool-btn" id="tool-horiz" title="Horizontal Price Line" onclick="setDrawMode('horiz', this)">📐</div>
+                <div class="tv-tool-sep"></div>
+                <div class="tv-tool-btn" id="tool-clear" title="Clear Drawings" onclick="clearDrawings()">🗑️</div>
+                <div class="tv-tool-btn" id="tool-save" title="Save Drawings" onclick="saveAnalysis()">💾</div>
+            </div>
+
+            <!-- Main Canvas Container -->
+            <div class="tv-canvas-container" id="chart-container">
+                <!-- Interactive TV Legend -->
+                <div class="tv-legend">
+                    <div class="tv-legend-main">
+                        <span class="tv-legend-sym" id="leg-sym">No Symbol</span>
+                        <div class="tv-legend-ohlc">
+                            <span>O <b id="leg-o">—</b></span>
+                            <span>H <b id="leg-h">—</b></span>
+                            <span>L <b id="leg-l">—</b></span>
+                            <span>C <b id="leg-c">—</b></span>
+                            <span class="tv-legend-change" id="leg-chg">—</span>
+                            <span>Vol <b id="leg-v">—</b></span>
+                        </div>
+                    </div>
+                    <!-- Indicator Values Row in Legend -->
+                    <div class="tv-legend-indicators" id="leg-indicators"></div>
+                </div>
+
+                <div id="chart-main"></div>
+                <svg id="svg-overlay"></svg>
+            </div>
+
+            <!-- Bottom Time Range Bar -->
+            <div class="tv-bottombar">
+                <div style="display:flex; gap:6px;">
+                    <span style="cursor:pointer;" onclick="fitRange(1)">1D</span>
+                    <span style="cursor:pointer;" onclick="fitRange(5)">5D</span>
+                    <span style="cursor:pointer;" onclick="fitRange(30)">1M</span>
+                    <span style="cursor:pointer;" onclick="fitRange(90)">3M</span>
+                    <span style="cursor:pointer;" onclick="fitRange(180)">6M</span>
+                    <span style="cursor:pointer;" onclick="fitRange(365)">1Y</span>
+                    <span style="cursor:pointer;" onclick="chart.timeScale().fitContent()">All</span>
+                </div>
+                <div id="save-status-msg" style="color:var(--text-dim);"></div>
+                <div>UTC+5:30 (Kolkata)</div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Symbol Selection Modal -->
+    <div class="modal-backdrop" id="symbol-modal">
+        <div class="modal-box" style="width: 520px;">
+            <div class="modal-header">
+                <div class="modal-title">Select Symbol or CSV File</div>
+                <div class="modal-close" onclick="closeSymbolDialog()">✕</div>
+            </div>
+            <div style="padding:14px 16px; display:flex; flex-direction:column; gap:10px;">
+                <label style="font-size:12px; font-weight:700;">Downloaded CSV / Parquet Files:</label>
+                <select id="an-file-select" style="background:var(--input-bg); border:1px solid var(--input-border); color:var(--text); padding:8px; border-radius:4px; width:100%;" onchange="loadSelectedCSV(); closeSymbolDialog();">
+                    <option value="">(Select a file)</option>
+                </select>
+                <div style="display:flex; justify-content:space-between; margin-top:6px;">
+                    <button class="btn btn-neu" onclick="refreshCSVList()">🔄 Refresh List</button>
+                    <button class="btn btn-success" onclick="closeSymbolDialog()">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Indicators Modal Dialog (OpenAlgo / TradingView Style) -->
+    <div class="modal-backdrop" id="indicator-modal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <div class="modal-title">📈 Technical Indicators (OpenAlgo Suite)</div>
+                <div class="modal-close" onclick="closeIndicatorModal()">✕</div>
+            </div>
+            <div class="modal-search">
+                <input type="text" id="modal-ind-search" placeholder="Search 30+ indicators (e.g. SMA, HMA, Supertrend, Keltner, RSI, ADX)..." oninput="filterModalIndicators()">
+                <div class="modal-categories">
+                    <span class="modal-cat-pill active" onclick="setModalCat('all', this)">All</span>
+                    <span class="modal-cat-pill" onclick="setModalCat('ma', this)">Moving Averages</span>
+                    <span class="modal-cat-pill" onclick="setModalCat('bands', this)">Bands & Channels</span>
+                    <span class="modal-cat-pill" onclick="setModalCat('trend', this)">Trend</span>
+                    <span class="modal-cat-pill" onclick="setModalCat('osc', this)">Oscillators</span>
+                    <span class="modal-cat-pill" onclick="setModalCat('vol', this)">Volume & Volatility</span>
+                    <span class="modal-cat-pill" onclick="setModalCat('pivot', this)">Pivot Points</span>
+                </div>
+            </div>
+            <div class="modal-list" id="modal-ind-list"></div>
+        </div>
+    </div>
+
+    <!-- Token Help Modal -->
+    <div class="modal-backdrop" id="token-help-modal">
+        <div class="modal-box" style="width: 500px;">
+            <div class="modal-header">
+                <div class="modal-title">🔑 How to get your Kite enctoken</div>
+                <div class="modal-close" onclick="closeTokenHelp()">✕</div>
+            </div>
+            <div style="padding:16px 20px; font-size:13px; line-height:1.6; color:var(--text);">
+                <p style="margin-bottom:10px;">Zerodha Kite <code>enctoken</code> expires daily after midnight. Follow these 4 quick steps:</p>
+                <ol style="padding-left:20px; display:flex; flex-direction:column; gap:8px;">
+                    <li>Open <b><a href="https://kite.zerodha.com" target="_blank" style="color:#38bdf8;">kite.zerodha.com</a></b> in Google Chrome or Edge and log in.</li>
+                    <li>Press <kbd style="background:var(--border); padding:2px 6px; border-radius:4px;">F12</kbd> (or right click &rarr; <i>Inspect</i>) to open Developer Tools.</li>
+                    <li>Click on the <b>Application</b> tab (top menu), then in the left sidebar expand <b>Cookies</b> and select <code>https://kite.zerodha.com</code>.</li>
+                    <li>Find <b><code>enctoken</code></b> in the table, double-click its value, copy it, and paste it into the <i>enctoken</i> field above.</li>
+                </ol>
+                <div style="margin-top:16px; text-align:right;">
+                    <button class="btn btn-success" onclick="closeTokenHelp()">Got it!</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Universal Platform Bridge (Dynamically detects pywebview vs FastAPI Web)
+        function isDesktop() {
+            return (typeof window.pywebview !== 'undefined' && typeof window.pywebview.api !== 'undefined');
+        }
+
+        const api = {
+            async get_settings() {
+                try {
+                    if (isDesktop()) return await window.pywebview.api.get_settings();
+                    return await fetch('/api/settings').then(r => r.json());
+                } catch(e) { return {}; }
+            },
+            async save_settings(cfg) {
+                try {
+                    if (isDesktop()) return await window.pywebview.api.save_settings(cfg);
+                    return await fetch('/api/settings', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cfg) }).then(r => r.json());
+                } catch(e) { return {}; }
+            },
+            async validate_token(uid, enc) {
+                try {
+                    if (isDesktop()) return await window.pywebview.api.validate_token(uid, enc);
+                    return await fetch('/api/validate-token', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({uid, enc}) }).then(r => r.json());
+                } catch(e) { return { valid: false, error: String(e) }; }
+            },
+            async get_cache_status() {
+                try {
+                    if (isDesktop()) return await window.pywebview.api.get_cache_status();
+                    return await fetch('/api/cache-status').then(r => r.json());
+                } catch(e) { return { status: 'none', label: 'Offline', badge: 'warn' }; }
+            },
+            async fetch_instruments(force, uid, enc) {
+                try {
+                    if (isDesktop()) return await window.pywebview.api.fetch_instruments(force, uid, enc);
+                    return await fetch('/api/fetch-instruments', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({force, uid, enc}) }).then(r => r.json());
+                } catch(e) { return { error: String(e) }; }
+            },
+            async search_instruments(q, exch, type, limit) {
+                try {
+                    if (isDesktop()) return await window.pywebview.api.search_instruments(q, exch, type, limit);
+                    return await fetch(`/api/search-instruments?q=${encodeURIComponent(q)}&exch=${exch}&type=${type}&limit=${limit}`).then(r => r.json());
+                } catch(e) { return []; }
+            },
+            async start_download(payload) {
+                try {
+                    if (isDesktop()) return await window.pywebview.api.start_download(payload);
+                    return await fetch('/api/start-download', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) }).then(r => r.json());
+                } catch(e) { return { error: String(e) }; }
+            },
+            async stop_download() {
+                try {
+                    if (isDesktop()) return await window.pywebview.api.stop_download();
+                    return await fetch('/api/stop-download', { method: 'POST' }).then(r => r.json());
+                } catch(e) { return {}; }
+            },
+            async get_download_status() {
+                try {
+                    if (isDesktop()) return await window.pywebview.api.get_download_status();
+                    return await fetch('/api/download-status').then(r => r.json());
+                } catch(e) { return null; }
+            },
+            async open_data_folder() {
+                try {
+                    if (isDesktop()) return await window.pywebview.api.open_data_folder();
+                    return await fetch('/api/open-folder').then(r => r.json());
+                } catch(e) { return {}; }
+            },
+            async list_csv_files() {
+                try {
+                    if (isDesktop()) return await window.pywebview.api.list_csv_files();
+                    return await fetch('/api/list-csv-files').then(r => r.json());
+                } catch(e) { return []; }
+            },
+            async load_chart_data(filename, tf, chartStyle) {
+                try {
+                    if (isDesktop()) return await window.pywebview.api.load_chart_data(filename, tf, chartStyle);
+                    return await fetch(`/api/load-chart-data?filename=${encodeURIComponent(filename)}&timeframe=${tf}&chart_style=${chartStyle}`).then(r => r.json());
+                } catch(e) { return { error: String(e) }; }
+            },
+            async save_analysis(payload) {
+                try {
+                    if (isDesktop()) return await window.pywebview.api.save_analysis(payload);
+                    return await fetch('/api/save-analysis', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) }).then(r => r.json());
+                } catch(e) { return {}; }
+            },
+            async quick_fetch_chart(payload) {
+                try {
+                    if (isDesktop()) return await window.pywebview.api.quick_fetch_chart(payload);
+                    return await fetch('/api/quick-fetch-chart', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) }).then(r => r.json());
+                } catch(e) { return { error: String(e) }; }
+            }
+        };
+
+        // Complete OpenAlgo Indicators Catalog (30+ indicators)
+        const INDICATORS_CATALOG = [
+            // Moving Averages
+            { id: 'sma_20', name: 'SMA 20', cat: 'ma', type: 'overlay', color: '#2962ff', desc: '20-period Simple Moving Average' },
+            { id: 'sma_50', name: 'SMA 50', cat: 'ma', type: 'overlay', color: '#ff9800', desc: '50-period Simple Moving Average' },
+            { id: 'sma_200', name: 'SMA 200', cat: 'ma', type: 'overlay', color: '#9c27b0', desc: '200-period Simple Moving Average' },
+            { id: 'ema_9', name: 'EMA 9', cat: 'ma', type: 'overlay', color: '#00bcd4', desc: '9-period Exponential Moving Average' },
+            { id: 'ema_21', name: 'EMA 21', cat: 'ma', type: 'overlay', color: '#ffeb3b', desc: '21-period Exponential Moving Average' },
+            { id: 'wma_20', name: 'WMA 20', cat: 'ma', type: 'overlay', color: '#089981', desc: '20-period Weighted Moving Average' },
+            { id: 'hma_9', name: 'HMA 9', cat: 'ma', type: 'overlay', color: '#00f2fe', desc: '9-period Hull Moving Average (Ultra low-lag)' },
+            { id: 'hma_21', name: 'HMA 21', cat: 'ma', type: 'overlay', color: '#4facfe', desc: '21-period Hull Moving Average' },
+            { id: 'dema_20', name: 'DEMA 20', cat: 'ma', type: 'overlay', color: '#f23645', desc: '20-period Double Exponential Moving Average' },
+            { id: 'tema_20', name: 'TEMA 20', cat: 'ma', type: 'overlay', color: '#e91e63', desc: '20-period Triple Exponential Moving Average' },
+            { id: 'vwma_20', name: 'VWMA 20', cat: 'ma', type: 'overlay', color: '#8bc34a', desc: '20-period Volume Weighted Moving Average' },
+
+            // Bands & Channels
+            { id: 'bb', name: 'Bollinger Bands (20, 2)', cat: 'bands', type: 'bb', color: '#787b86', desc: 'Volatility bands with 2 standard deviations' },
+            { id: 'keltner', name: 'Keltner Channels (20, 1.5)', cat: 'bands', type: 'keltner', color: '#00bcd4', desc: 'ATR-based volatility channel envelopes' },
+            { id: 'donchian', name: 'Donchian Channels (20)', cat: 'bands', type: 'donchian', color: '#ab47bc', desc: '20-period highest high and lowest low bands' },
+
+            // Trend
+            { id: 'supertrend', name: 'Supertrend (10, 3)', cat: 'trend', type: 'supertrend', color: '#089981', desc: 'Trend following indicator with dynamic green/red stops' },
+            { id: 'psar', name: 'Parabolic SAR (0.02, 0.2)', cat: 'trend', type: 'psar', color: '#ff9800', desc: 'Parabolic Stop and Reverse price dots' },
+            { id: 'ichimoku', name: 'Ichimoku Cloud (9, 26, 52)', cat: 'trend', type: 'ichimoku', color: '#e91e63', desc: 'Tenkan conversion, Kijun baseline & Senkou spans' },
+            { id: 'adx_14', name: 'ADX / DMI (14)', cat: 'trend', type: 'adx', color: '#ffb74d', desc: 'Average Directional Movement Index with +DI and -DI' },
+            { id: 'aroon_14', name: 'Aroon (14)', cat: 'trend', type: 'aroon', color: '#26a69a', desc: 'Aroon Up, Aroon Down, and Aroon Oscillator' },
+
+            // Oscillators
+            { id: 'rsi_14', name: 'RSI (14)', cat: 'osc', type: 'rsi', color: '#7e57c2', desc: 'Relative Strength Index (0-100) with 70/30 zones' },
+            { id: 'stoch_rsi', name: 'Stochastic RSI (14, 3)', cat: 'osc', type: 'stoch_rsi', color: '#26c6da', desc: 'Stochastic applied to RSI for turning points' },
+            { id: 'macd', name: 'MACD (12, 26, 9)', cat: 'osc', type: 'macd', color: '#2962ff', desc: 'MACD line, signal line, and green/red histogram' },
+            { id: 'stoch', name: 'Stochastic (14, 3)', cat: 'osc', type: 'stoch', color: '#ec407a', desc: 'Stochastic Oscillator %K and %D lines' },
+            { id: 'williams_r', name: 'Williams %R (14)', cat: 'osc', type: 'williams_r', color: '#ab47bc', desc: 'Williams %R momentum indicator (-100 to 0)' },
+            { id: 'cci_20', name: 'CCI (20)', cat: 'osc', type: 'cci', color: '#ffa726', desc: 'Commodity Channel Index with +100/-100 levels' },
+            { id: 'roc_12', name: 'ROC (12)', cat: 'osc', type: 'roc', color: '#66bb6a', desc: 'Price Rate of Change percentage' },
+            { id: 'ao', name: 'Awesome Oscillator (AO)', cat: 'osc', type: 'ao', color: '#089981', desc: 'Bill Williams Awesome Oscillator 5/34 histogram' },
+            { id: 'mfi_14', name: 'Money Flow Index (MFI 14)', cat: 'osc', type: 'mfi', color: '#ba68c8', desc: 'Volume-weighted RSI momentum indicator' },
+
+            // Volume & Volatility
+            { id: 'vwap', name: 'VWAP', cat: 'vol', type: 'overlay', color: '#e91e63', desc: 'Volume Weighted Average Price' },
+            { id: 'atr_14', name: 'ATR (14)', cat: 'vol', type: 'pane', color: '#00acc1', desc: 'Average True Range volatility indicator' },
+            { id: 'obv', name: 'OBV (On-Balance Volume)', cat: 'vol', type: 'pane', color: '#42a5f5', desc: 'Cumulative volume indicator measuring buying pressure' },
+            { id: 'vol_sma_20', name: 'Volume SMA (20)', cat: 'vol', type: 'vol_sma', color: '#787b86', desc: '20-period moving average on volume bars' },
+            { id: 'cmf_20', name: 'Chaikin Money Flow (CMF 20)', cat: 'vol', type: 'cmf', color: '#089981', desc: 'Measures institutional accumulation & distribution' },
+
+            // Pivot Points
+            { id: 'pivots', name: 'Classic Pivot Points', cat: 'pivot', type: 'pivots', color: '#fdd835', desc: 'Floor Pivots (PP, R1, S1, R2, S2)' }
+        ];
+
+        let activeIndicators = new Set(['sma_20', 'ema_21']);
+        let hiddenIndicators = new Set();
+        let modalCurrentCat = 'all';
+        let queue = [];
+        let currentTheme = 'dark';
+        let currentTF = '1D';
+        let currentChartStyle = 'candles';
+        let activeCSV = '';
+        let activeSymbol = '';
+        let chartDataCache = null;
+
+        let chart = null, candleSeries = null, volumeSeries = null, lineSeries = null, areaSeries = null;
+        let lineSeriesMap = {};
+        let drawMode = null, drawPoints = [], drawings = [];
+        let appInitialized = false;
+
+        async function initApp() {
+            if (appInitialized) return;
+            appInitialized = true;
+
+            document.getElementById('cfg-to').value = new Date().toISOString().split('T')[0];
+            try {
+                const cfg = await api.get_settings();
+                if (cfg) {
+                    if (cfg.uid) document.getElementById('cfg-uid').value = cfg.uid;
+                    if (cfg.enc) document.getElementById('cfg-enc').value = cfg.enc;
+                    if (cfg.interval) document.getElementById('cfg-interval').value = cfg.interval;
+                    if (cfg.threads) document.getElementById('cfg-threads').value = cfg.threads;
+                    if (cfg.delay) document.getElementById('cfg-delay').value = cfg.delay;
+                    if (cfg.theme === 'light') toggleTheme();
+                }
+            } catch(e) {
+                console.error('Failed to load settings:', e);
+            }
+
+            updateCacheBadge();
+            checkTokenStatus(false);
+            initChart();
+            await refreshCSVList();
+            setInterval(pollStatus, 1000);
+
+            // Auto-load first CSV if available
+            const sel = document.getElementById('an-file-select');
+            if (sel.options.length > 1) {
+                sel.selectedIndex = 1;
+                loadSelectedCSV();
+            }
+        }
+
+        // Initialize reliably across both pywebview and Web
+        window.addEventListener('pywebviewready', () => initApp());
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => { if (!appInitialized) initApp(); }, 300);
+        });
+
+        // ── Auto-save settings ───────────────────────────────────────────────
+        function saveCurrentSettings() {
+            const uid = document.getElementById('cfg-uid').value.trim();
+            const enc = document.getElementById('cfg-enc').value.trim();
+            const interval = document.getElementById('cfg-interval').value;
+            const threads = parseInt(document.getElementById('cfg-threads').value) || 5;
+            const delay = parseFloat(document.getElementById('cfg-delay').value) || 0.1;
+            api.save_settings({ uid, enc, interval, threads, delay, theme: currentTheme });
+        }
+
+        async function checkTokenStatus(interactive = false) {
+            const uid = document.getElementById('cfg-uid').value.trim();
+            const enc = document.getElementById('cfg-enc').value.trim();
+            const badge = document.getElementById('token-badge');
+
+            if (!enc) {
+                badge.className = 'badge-warn';
+                badge.innerText = 'Token: Empty';
+                if (interactive) showTokenHelp();
+                return;
+            }
+
+            badge.className = 'badge-warn';
+            badge.innerText = 'Verifying...';
+            const res = await api.validate_token(uid, enc);
+
+            if (res.valid) {
+                badge.className = 'badge-ok';
+                badge.innerText = '🟢 Token Active';
+                if (interactive) alert('✅ enctoken is valid and active!');
+            } else {
+                badge.className = 'badge-err';
+                badge.innerText = '🔴 Token Expired (Help)';
+                if (interactive) {
+                    alert(res.error || 'Token is invalid or expired.');
+                    showTokenHelp();
+                }
+            }
+        }
+
+        function showTokenHelp() {
+            document.getElementById('token-help-modal').classList.add('active');
+        }
+        function closeTokenHelp() {
+            document.getElementById('token-help-modal').classList.remove('active');
+        }
+
+        function openSymbolDialog() {
+            document.getElementById('symbol-modal').classList.add('active');
+        }
+        function closeSymbolDialog() {
+            document.getElementById('symbol-modal').classList.remove('active');
+        }
+
+        // ── Navigation & Theme ───────────────────────────────────────────────
+        function switchMode(m) {
+            document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
+            if (m === 'dl') {
+                document.getElementById('btn-mode-dl').classList.add('active');
+                document.getElementById('view-downloader').classList.add('active');
+            } else {
+                document.getElementById('btn-mode-an').classList.add('active');
+                document.getElementById('view-analyze').classList.add('active');
+                if (chart) chart.applyOptions({ width: document.getElementById('chart-container').clientWidth });
+            }
+        }
+
+        function toggleTheme() {
+            currentTheme = (currentTheme === 'dark') ? 'light' : 'dark';
+            document.body.className = (currentTheme === 'light') ? 'light-theme' : '';
+            document.getElementById('theme-btn').innerText = (currentTheme === 'light') ? '☀️ Light' : '🌙 Dark';
+            saveCurrentSettings();
+            if (chart) {
+                const bg = (currentTheme === 'light') ? '#ffffff' : '#131722';
+                const grid = (currentTheme === 'light') ? '#f0f3fa' : '#1e222d';
+                const text = (currentTheme === 'light') ? '#131722' : '#787b86';
+                chart.applyOptions({
+                    layout: { background: { color: bg }, textColor: text },
+                    grid: { vertLines: { color: grid }, horzLines: { color: grid } }
+                });
+            }
+        }
+
+        function togglePassword() {
+            const el = document.getElementById('cfg-enc');
+            el.type = (el.type === 'password') ? 'text' : 'password';
+        }
+
+        async function updateCacheBadge() {
+            const st = await api.get_cache_status();
+            const el = document.getElementById('cache-badge');
+            el.innerText = st.label;
+            el.className = (st.badge === 'ok') ? 'badge-ok' : 'badge-warn';
+        }
+
+        // ── Indicators Modal Dialog (TradingView Style) ──────────────────────
+        function openIndicatorModal() {
+            document.getElementById('indicator-modal').classList.add('active');
+            filterModalIndicators();
+        }
+        function closeIndicatorModal() {
+            document.getElementById('indicator-modal').classList.remove('active');
+        }
+        function setModalCat(cat, el) {
+            modalCurrentCat = cat;
+            document.querySelectorAll('.modal-cat-pill').forEach(p => p.classList.remove('active'));
+            el.classList.add('active');
+            filterModalIndicators();
+        }
+        function filterModalIndicators() {
+            const q = (document.getElementById('modal-ind-search').value || '').toLowerCase();
+            const list = document.getElementById('modal-ind-list');
+            list.innerHTML = '';
+
+            INDICATORS_CATALOG.forEach(ind => {
+                if (modalCurrentCat !== 'all' && ind.cat !== modalCurrentCat) return;
+                if (q && !ind.name.toLowerCase().includes(q) && !ind.desc.toLowerCase().includes(q)) return;
+                const isAdded = activeIndicators.has(ind.id);
+                const div = document.createElement('div');
+                div.className = 'modal-item';
+                div.innerHTML = `
+                    <div>
+                        <div style="font-weight:700; display:flex; align-items:center; gap:8px;">
+                            <span style="display:inline-block; width:10px; height:10px; background:${ind.color}; border-radius:2px;"></span>
+                            ${ind.name}
+                        </div>
+                        <div class="modal-item-desc">${ind.desc}</div>
+                    </div>
+                    <button class="btn ${isAdded ? 'btn-danger' : 'btn-success'}" style="padding:4px 10px; font-size:11px;" onclick="event.stopPropagation(); toggleIndicator('${ind.id}')">
+                        ${isAdded ? '✕ Remove' : '+ Add'}
+                    </button>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function toggleIndicator(id) {
+            if (activeIndicators.has(id)) {
+                activeIndicators.delete(id);
+                hiddenIndicators.delete(id);
+                removeIndicatorFromChart(id);
+            } else {
+                activeIndicators.add(id);
+            }
+            document.getElementById('tv-ind-count').innerText = activeIndicators.size;
+            filterModalIndicators();
+            updateChartIndicators();
+            updateLegendIndicators();
+        }
+
+        function toggleIndicatorVisibility(id) {
+            if (hiddenIndicators.has(id)) {
+                hiddenIndicators.delete(id);
+            } else {
+                hiddenIndicators.add(id);
+            }
+            updateChartIndicators();
+            updateLegendIndicators();
+        }
+
+        function updateLegendIndicators(hoverIndex = null) {
+            const container = document.getElementById('leg-indicators');
+            container.innerHTML = '';
+            if (!chartDataCache || !chartDataCache.indicators) return;
+
+            const inds = chartDataCache.indicators;
+            const idx = (hoverIndex !== null) ? hoverIndex : (chartDataCache.timestamps.length - 1);
+
+            activeIndicators.forEach(id => {
+                const ind = INDICATORS_CATALOG.find(x => x.id === id);
+                if (!ind) return;
+                const isHidden = hiddenIndicators.has(id);
+                const val = (inds[id] && inds[id][idx] !== null && inds[id][idx] !== undefined) ? inds[id][idx] : '—';
+
+                const row = document.createElement('div');
+                row.className = 'tv-ind-row';
+                row.innerHTML = `
+                    <span style="display:inline-block; width:8px; height:8px; background:${ind.color}; border-radius:50%; opacity:${isHidden ? 0.3 : 1};"></span>
+                    <span class="tv-ind-name" style="opacity:${isHidden ? 0.4 : 1};">${ind.name}</span>
+                    <span class="tv-ind-val" style="color:${ind.color}; opacity:${isHidden ? 0.4 : 1};">${val}</span>
+                    <span class="tv-ind-action" title="${isHidden ? 'Show' : 'Hide'}" onclick="toggleIndicatorVisibility('${id}')">${isHidden ? '👁️‍🗨️' : '👁'}</span>
+                    <span class="tv-ind-action" title="Remove" onclick="toggleIndicator('${id}')">&times;</span>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        // ── Downloader Methods ───────────────────────────────────────────────
+        async function fetchInstruments(force) {
+            const uid = document.getElementById('cfg-uid').value.trim();
+            const enc = document.getElementById('cfg-enc').value.trim();
+            if (!enc) {
+                showTokenHelp();
+                return alert('Enter enctoken first!');
+            }
+            document.getElementById('cache-badge').innerText = 'Fetching...';
+            const res = await api.fetch_instruments(force, uid, enc);
+            if (res.error) alert(res.error);
+            updateCacheBadge();
+        }
+
+        let srchDebounce = null;
+        function searchInstruments() {
+            clearTimeout(srchDebounce);
+            srchDebounce = setTimeout(async () => {
+                const q = document.getElementById('srch-q').value;
+                const exch = document.getElementById('srch-exch').value;
+                const type = document.getElementById('srch-type').value;
+                const rows = await api.search_instruments(q, exch, type, 100);
+                const tbody = document.getElementById('inst-tbody');
+                tbody.innerHTML = '';
+                rows.forEach(r => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="font-weight:700;">${r.symbol}</td>
+                        <td>${r.exchange}</td>
+                        <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.name}</td>
+                        <td>${r.type}</td>
+                        <td>${r.token}</td>
+                        <td>
+                            <button class="btn btn-neu" style="padding:2px 8px; font-size:11px;" onclick='addToQueue(${JSON.stringify(r)})'>+ Queue</button>
+                            <button class="btn btn-neu" style="padding:2px 8px; font-size:11px;" onclick="openInAnalyzer('${r.symbol}')">📈 Chart</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                document.getElementById('match-count').innerText = `Showing ${rows.length} matches`;
+            }, 250);
+        }
+
+        function quickAdd() {
+            const val = document.getElementById('qa-input').value.trim();
+            const exch = document.getElementById('qa-exch').value;
+            if (!val) return;
+            const tok = parseInt(val) || 0;
+            addToQueue({ symbol: val, exchange: exch, token: tok });
+            document.getElementById('qa-input').value = '';
+        }
+
+        function addPreset(sym, exch, tok) {
+            addToQueue({ symbol: sym, exchange: exch, token: tok });
+        }
+
+        function addToQueue(item) {
+            if (queue.some(x => x.symbol === item.symbol && x.exchange === item.exchange)) return;
+            queue.push(item);
+            renderQueue();
+        }
+
+        function removeFromQueue(idx) {
+            queue.splice(idx, 1);
+            renderQueue();
+        }
+
+        function clearQueue() {
+            queue = [];
+            renderQueue();
+        }
+
+        function renderQueue() {
+            document.getElementById('queue-count').innerText = queue.length;
+            const el = document.getElementById('queue-list');
+            el.innerHTML = '';
+            queue.forEach((item, idx) => {
+                const div = document.createElement('div');
+                div.className = 'queue-item';
+                div.innerHTML = `
+                    <span><b>${item.symbol}</b> (${item.exchange})</span>
+                    <span style="color:var(--down); cursor:pointer;" onclick="removeFromQueue(${idx})">&times;</span>
+                `;
+                el.appendChild(div);
+            });
+        }
+
+        async function startDownload() {
+            if (queue.length === 0) return alert('Queue is empty! Add instruments first.');
+            saveCurrentSettings();
+            const payload = {
+                queue,
+                uid: document.getElementById('cfg-uid').value.trim(),
+                enc: document.getElementById('cfg-enc').value.trim(),
+                interval: document.getElementById('cfg-interval').value,
+                from_date: document.getElementById('cfg-from').value,
+                to_date: document.getElementById('cfg-to').value,
+                threads: parseInt(document.getElementById('cfg-threads').value) || 5,
+                delay: parseFloat(document.getElementById('cfg-delay').value) || 0.1,
+                merge: document.getElementById('cfg-merge').checked
+            };
+            const res = await api.start_download(payload);
+            if (res.error) {
+                alert('❌ ' + res.error);
+                if (res.error.includes('403') || res.error.includes('enctoken')) showTokenHelp();
+                return;
+            }
+            document.getElementById('btn-start').disabled = true;
+            document.getElementById('btn-stop').disabled = false;
+        }
+
+        async function stopDownload() {
+            await api.stop_download();
+            document.getElementById('btn-start').disabled = false;
+            document.getElementById('btn-stop').disabled = true;
+        }
+
+        async function pollStatus() {
+            const st = await api.get_download_status();
+            if (!st) return;
+            document.getElementById('btn-start').disabled = st.active;
+            document.getElementById('btn-stop').disabled = !st.active;
+
+            const pct = st.overall_total > 0 ? Math.round((st.overall_done / st.overall_total) * 100) : 0;
+            document.getElementById('overall-percent').innerText = `${pct}% (${st.overall_done} / ${st.overall_total})`;
+            document.getElementById('overall-fill').style.width = `${pct}%`;
+
+            const tbody = document.getElementById('status-tbody');
+            tbody.innerHTML = '';
+            st.items.forEach(i => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="font-weight:700;">${i.symbol}</td>
+                    <td>${i.exchange}</td>
+                    <td>${i.interval}</td>
+                    <td style="${i.status.includes('403') ? 'color:var(--down);font-weight:700;' : ''}">${i.status}</td>
+                    <td>${i.done} / ${i.total}</td>
+                    <td>${i.rows ? i.rows.toLocaleString() : '—'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function openFolder() {
+            api.open_data_folder();
+        }
+
+        // ── TradingView Pro Charting Engine ──────────────────────────────────
+        function initChart() {
+            const container = document.getElementById('chart-container');
+            const bg = (currentTheme === 'light') ? '#ffffff' : '#131722';
+            const grid = (currentTheme === 'light') ? '#f0f3fa' : '#1e222d';
+            const text = (currentTheme === 'light') ? '#131722' : '#787b86';
+
+            chart = LightweightCharts.createChart(document.getElementById('chart-main'), {
+                layout: { background: { color: bg }, textColor: text, fontSize: 11, fontFamily: 'Trebuchet MS, Roboto, sans-serif' },
+                grid: { vertLines: { color: grid }, horzLines: { color: grid } },
+                crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+                timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#2a2e39' },
+                rightPriceScale: { borderColor: '#2a2e39', scaleMargins: { top: 0.1, bottom: 0.18 } },
+            });
+
+            candleSeries = chart.addCandlestickSeries({
+                upColor: '#089981', downColor: '#f23645',
+                borderVisible: false,
+                wickUpColor: '#089981', wickDownColor: '#f23645'
+            });
+
+            volumeSeries = chart.addHistogramSeries({
+                priceFormat: { type: 'volume' },
+                priceScaleId: '',
+                scaleMargins: { top: 0.82, bottom: 0 },
+            });
+
+            chart.subscribeCrosshairMove(p => {
+                if (!p.time || !chartDataCache) return;
+                const candleData = p.seriesPrices.get(candleSeries) || (lineSeries && p.seriesPrices.get(lineSeries)) || (areaSeries && p.seriesPrices.get(areaSeries));
+                if (!candleData) return;
+
+                const o = candleData.open !== undefined ? candleData.open : candleData;
+                const h = candleData.high !== undefined ? candleData.high : candleData;
+                const l = candleData.low !== undefined ? candleData.low : candleData;
+                const c = candleData.close !== undefined ? candleData.close : candleData;
+                const v = p.seriesPrices.get(volumeSeries) || 0;
+
+                document.getElementById('leg-o').innerText = o.toFixed(2);
+                document.getElementById('leg-h').innerText = h.toFixed(2);
+                document.getElementById('leg-l').innerText = l.toFixed(2);
+                document.getElementById('leg-c').innerText = c.toFixed(2);
+                document.getElementById('leg-v').innerText = v.toLocaleString();
+
+                const diff = c - o;
+                const pct = o !== 0 ? ((diff / o) * 100) : 0;
+                const chgEl = document.getElementById('leg-chg');
+                chgEl.className = 'tv-legend-change ' + (diff >= 0 ? 'up' : 'down');
+                chgEl.innerText = `${diff >= 0 ? '+' : ''}${diff.toFixed(2)} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)`;
+
+                // Update dynamic indicator values in legend
+                const tsIndex = chartDataCache.timestamps.indexOf(p.time);
+                if (tsIndex !== -1) {
+                    updateLegendIndicators(tsIndex);
+                }
+            });
+
+            chart.timeScale().subscribeVisibleLogicalRangeChange(() => renderDrawings());
+            window.addEventListener('resize', () => {
+                if (chart) chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
+            });
+
+            container.addEventListener('click', onChartClick);
+            container.addEventListener('mousemove', onChartMouseMove);
+        }
+
+        async function refreshCSVList() {
+            const files = await api.list_csv_files();
+            const sel = document.getElementById('an-file-select');
+            sel.innerHTML = '<option value="">(Select a file)</option>';
+            files.forEach(f => {
+                const opt = document.createElement('option');
+                opt.value = f.name; opt.innerText = `${f.name} (${f.size})`;
+                sel.appendChild(opt);
+            });
+        }
+
+        async function loadSelectedCSV() {
+            const f = document.getElementById('an-file-select').value;
+            if (!f) return;
+            activeCSV = f;
+            await loadChartData(f, currentTF, currentChartStyle);
+        }
+
+        function changeTF(tf) {
+            currentTF = tf;
+            document.querySelectorAll('#tf-bar .tv-pill').forEach(p => {
+                p.classList.toggle('active', p.innerText === tf);
+            });
+            if (activeCSV) loadChartData(activeCSV, tf, currentChartStyle);
+        }
+
+        function changeChartStyle(style) {
+            currentChartStyle = style;
+            if (activeCSV) loadChartData(activeCSV, currentTF, style);
+        }
+
+        async function loadChartData(filename, tf, style = 'candles') {
+            const t0 = performance.now();
+            document.getElementById('bar-count-msg').innerText = 'Loading...';
+            const data = await api.load_chart_data(filename, tf, style);
+            if (data.error) return alert(data.error);
+
+            chartDataCache = data;
+            activeSymbol = data.symbol;
+            document.getElementById('tv-sym-label').innerText = `${data.symbol} [${tf}]`;
+            document.getElementById('leg-sym').innerText = `${data.symbol} · ${tf} · ${filename.split('_')[0]}`;
+            const loadMs = Math.round(performance.now() - t0);
+            document.getElementById('bar-count-msg').innerText = `${data.loaded_bars.toLocaleString()} bars (${loadMs}ms)`;
+
+            // Render according to chosen style
+            renderPriceSeries(style, data.candles);
+            volumeSeries.setData(data.volumes);
+            chart.timeScale().fitContent();
+
+            drawings = data.drawings || [];
+            renderDrawings();
+            updateChartIndicators();
+            updateLegendIndicators();
+            document.getElementById('save-status-msg').innerText = drawings.length ? `Loaded ${drawings.length} drawing(s)` : '';
+        }
+
+        function renderPriceSeries(style, candles) {
+            // Remove alternate series if switching
+            if (lineSeries) { try { chart.removeSeries(lineSeries); } catch(e){} lineSeries = null; }
+            if (areaSeries) { try { chart.removeSeries(areaSeries); } catch(e){} areaSeries = null; }
+            if (candleSeries) { try { chart.removeSeries(candleSeries); } catch(e){} candleSeries = null; }
+
+            if (style === 'candles' || style === 'heikin_ashi') {
+                candleSeries = chart.addCandlestickSeries({
+                    upColor: '#089981', downColor: '#f23645',
+                    borderVisible: false,
+                    wickUpColor: '#089981', wickDownColor: '#f23645'
+                });
+                candleSeries.setData(candles);
+            } else if (style === 'line') {
+                lineSeries = chart.addLineSeries({ color: '#2962ff', lineWidth: 2 });
+                lineSeries.setData(candles.map(c => ({ time: c.time, value: c.close })));
+            } else if (style === 'area') {
+                areaSeries = chart.addAreaSeries({
+                    topColor: 'rgba(41, 98, 255, 0.4)', bottomColor: 'rgba(41, 98, 255, 0.0)',
+                    lineColor: '#2962ff', lineWidth: 2
+                });
+                areaSeries.setData(candles.map(c => ({ time: c.time, value: c.close })));
+            }
+        }
+
+        async function quickLivePrompt() {
+            const sym = prompt('Enter Zerodha Instrument Token or Symbol (e.g. 256265, RELIANCE, NIFTY 50):', '256265');
+            if (!sym) return;
+            const uid = document.getElementById('cfg-uid').value.trim();
+            const enc = document.getElementById('cfg-enc').value.trim();
+            if (!enc) {
+                showTokenHelp();
+                return alert('Enter enctoken first!');
+            }
+            document.getElementById('bar-count-msg').innerText = 'Fetching live...';
+            const data = await api.quick_fetch_chart({ symbol_or_token: sym, uid, enc, chart_style: currentChartStyle });
+            if (data.error) {
+                alert('❌ ' + data.error);
+                if (data.error.includes('403') || data.error.includes('enctoken')) showTokenHelp();
+                return;
+            }
+
+            chartDataCache = data;
+            activeSymbol = data.symbol;
+            document.getElementById('tv-sym-label').innerText = `${data.symbol} [1m Live]`;
+            document.getElementById('leg-sym').innerText = `${data.symbol} · 1m Live`;
+            document.getElementById('bar-count-msg').innerText = `${data.loaded_bars.toLocaleString()} bars`;
+
+            renderPriceSeries(currentChartStyle, data.candles);
+            volumeSeries.setData(data.volumes);
+            chart.timeScale().fitContent();
+            updateChartIndicators();
+            updateLegendIndicators();
+        }
+
+        function openInAnalyzer(sym) {
+            switchMode('an');
+            const sel = document.getElementById('an-file-select');
+            let matched = '';
+            for (let opt of sel.options) {
+                if (opt.value.includes(sym)) { matched = opt.value; break; }
+            }
+            if (matched) {
+                sel.value = matched;
+                loadSelectedCSV();
+            }
+        }
+
+        function removeIndicatorFromChart(id) {
+            const prefixes = [
+                id, `${id}_upper`, `${id}_middle`, `${id}_lower`, `${id}_up`, `${id}_dn`,
+                `${id}_line`, `${id}_signal`, `${id}_hist`, `${id}_k`, `${id}_d`,
+                'ichimoku_conversion', 'ichimoku_base', 'ichimoku_span_a', 'ichimoku_span_b',
+                'plus_di', 'minus_di', 'adx_14', 'aroon_up', 'aroon_dn', 'aroon_osc',
+                'pivot_pp', 'pivot_r1', 'pivot_s1', 'pivot_r2', 'pivot_s2'
+            ];
+            prefixes.forEach(k => {
+                if (lineSeriesMap[k]) {
+                    try { chart.removeSeries(lineSeriesMap[k]); } catch(e){}
+                    delete lineSeriesMap[k];
+                }
+            });
+        }
+
+        function updateChartIndicators() {
+            if (!chartDataCache || !chartDataCache.indicators) return;
+            const inds = chartDataCache.indicators;
+            const ts = chartDataCache.timestamps;
+
+            activeIndicators.forEach(id => {
+                const ind = INDICATORS_CATALOG.find(x => x.id === id);
+                if (!ind) return;
+                const isHidden = hiddenIndicators.has(id);
+
+                if (isHidden) {
+                    removeIndicatorFromChart(id);
+                    return;
+                }
+
+                // 1. Overlays (Moving Averages)
+                if (ind.type === 'overlay') {
+                    if (inds[id]) {
+                        if (!lineSeriesMap[id]) {
+                            lineSeriesMap[id] = chart.addLineSeries({ color: ind.color, lineWidth: 1.5, crosshairMarkerVisible: false });
+                        }
+                        const pts = [];
+                        for (let i = 0; i < ts.length; i++) {
+                            const val = inds[id][i];
+                            if (val !== null && val !== undefined) pts.push({ time: ts[i], value: val });
+                        }
+                        lineSeriesMap[id].setData(pts);
+                    }
+                }
+                // 2. Bollinger Bands
+                else if (id === 'bb') {
+                    ['bb_upper', 'bb_middle', 'bb_lower'].forEach(k => {
+                        if (inds[k]) {
+                            if (!lineSeriesMap[k]) {
+                                lineSeriesMap[k] = chart.addLineSeries({
+                                    color: (k === 'bb_middle' ? '#ff9800' : '#787b86'),
+                                    lineWidth: (k === 'bb_middle' ? 1.5 : 1),
+                                    lineStyle: (k === 'bb_middle' ? 0 : 2)
+                                });
+                            }
+                            const pts = [];
+                            for (let i = 0; i < ts.length; i++) {
+                                const val = inds[k][i];
+                                if (val !== null && val !== undefined) pts.push({ time: ts[i], value: val });
+                            }
+                            lineSeriesMap[k].setData(pts);
+                        }
+                    });
+                }
+                // 3. Supertrend
+                else if (id === 'supertrend') {
+                    ['supertrend_up', 'supertrend_dn'].forEach(k => {
+                        if (inds[k]) {
+                            if (!lineSeriesMap[k]) {
+                                lineSeriesMap[k] = chart.addLineSeries({
+                                    color: (k === 'supertrend_up' ? '#089981' : '#f23645'),
+                                    lineWidth: 1.8
+                                });
+                            }
+                            const pts = [];
+                            for (let i = 0; i < ts.length; i++) {
+                                const val = inds[k][i];
+                                if (val !== null && val !== undefined) pts.push({ time: ts[i], value: val });
+                            }
+                            lineSeriesMap[k].setData(pts);
+                        }
+                    });
+                }
+                // 4. Parabolic SAR
+                else if (id === 'psar') {
+                    if (inds.psar) {
+                        if (!lineSeriesMap['psar']) {
+                            lineSeriesMap['psar'] = chart.addLineSeries({
+                                color: '#ff9800', lineWidth: 1, lineStyle: 2, crosshairMarkerVisible: true
+                            });
+                        }
+                        const pts = [];
+                        for (let i = 0; i < ts.length; i++) {
+                            const val = inds.psar[i];
+                            if (val !== null && val !== undefined) pts.push({ time: ts[i], value: val });
+                        }
+                        lineSeriesMap['psar'].setData(pts);
+                    }
+                }
+                // 5. RSI
+                else if (id === 'rsi_14') {
+                    if (inds.rsi_14) {
+                        if (!lineSeriesMap['rsi_14']) {
+                            lineSeriesMap['rsi_14'] = chart.addLineSeries({
+                                color: '#7e57c2', lineWidth: 1.5,
+                                priceScaleId: 'sub_rsi', scaleMargins: { top: 0.8, bottom: 0.02 }
+                            });
+                            lineSeriesMap['rsi_14'].createPriceLine({ price: 70, color: '#f23645', lineWidth: 1, lineStyle: 2, title: 'OB 70' });
+                            lineSeriesMap['rsi_14'].createPriceLine({ price: 30, color: '#089981', lineWidth: 1, lineStyle: 2, title: 'OS 30' });
+                        }
+                        const pts = [];
+                        for (let i = 0; i < ts.length; i++) {
+                            const val = inds.rsi_14[i];
+                            if (val !== null && val !== undefined) pts.push({ time: ts[i], value: val });
+                        }
+                        lineSeriesMap['rsi_14'].setData(pts);
+                    }
+                }
+                // 6. MACD
+                else if (id === 'macd') {
+                    if (inds.macd_line && inds.macd_signal && inds.macd_hist) {
+                        if (!lineSeriesMap['macd_hist']) {
+                            lineSeriesMap['macd_hist'] = chart.addHistogramSeries({
+                                priceScaleId: 'sub_macd', scaleMargins: { top: 0.8, bottom: 0.02 },
+                            });
+                        }
+                        if (!lineSeriesMap['macd_line']) {
+                            lineSeriesMap['macd_line'] = chart.addLineSeries({
+                                color: '#2962ff', lineWidth: 1.5,
+                                priceScaleId: 'sub_macd', scaleMargins: { top: 0.8, bottom: 0.02 },
+                            });
+                        }
+                        if (!lineSeriesMap['macd_signal']) {
+                            lineSeriesMap['macd_signal'] = chart.addLineSeries({
+                                color: '#ff9800', lineWidth: 1.5,
+                                priceScaleId: 'sub_macd', scaleMargins: { top: 0.8, bottom: 0.02 },
+                            });
+                        }
+                        const histPts = [], linePts = [], sigPts = [];
+                        for (let i = 0; i < ts.length; i++) {
+                            const h = inds.macd_hist[i];
+                            if (h !== null && h !== undefined) {
+                                histPts.push({ time: ts[i], value: h, color: h >= 0 ? '#089981' : '#f23645' });
+                            }
+                            const l = inds.macd_line[i];
+                            if (l !== null && l !== undefined) linePts.push({ time: ts[i], value: l });
+                            const s = inds.macd_signal[i];
+                            if (s !== null && s !== undefined) sigPts.push({ time: ts[i], value: s });
+                        }
+                        lineSeriesMap['macd_hist'].setData(histPts);
+                        lineSeriesMap['macd_line'].setData(linePts);
+                        lineSeriesMap['macd_signal'].setData(sigPts);
+                    }
+                }
+                // 7. Stochastic
+                else if (id === 'stoch') {
+                    if (inds.stoch_k && inds.stoch_d) {
+                        if (!lineSeriesMap['stoch_k']) {
+                            lineSeriesMap['stoch_k'] = chart.addLineSeries({
+                                color: '#2962ff', lineWidth: 1.5,
+                                priceScaleId: 'sub_stoch', scaleMargins: { top: 0.8, bottom: 0.02 }
+                            });
+                            lineSeriesMap['stoch_k'].createPriceLine({ price: 80, color: '#f23645', lineWidth: 1, lineStyle: 2 });
+                            lineSeriesMap['stoch_k'].createPriceLine({ price: 20, color: '#089981', lineWidth: 1, lineStyle: 2 });
+                        }
+                        if (!lineSeriesMap['stoch_d']) {
+                            lineSeriesMap['stoch_d'] = chart.addLineSeries({
+                                color: '#ec407a', lineWidth: 1.5,
+                                priceScaleId: 'sub_stoch', scaleMargins: { top: 0.8, bottom: 0.02 }
+                            });
+                        }
+                        const kPts = [], dPts = [];
+                        for (let i = 0; i < ts.length; i++) {
+                            const k = inds.stoch_k[i];
+                            if (k !== null && k !== undefined) kPts.push({ time: ts[i], value: k });
+                            const d = inds.stoch_d[i];
+                            if (d !== null && d !== undefined) dPts.push({ time: ts[i], value: d });
+                        }
+                        lineSeriesMap['stoch_k'].setData(kPts);
+                        lineSeriesMap['stoch_d'].setData(dPts);
+                    }
+                }
+                // 8. General Sub-Panes (ATR, OBV, CMF, MFI, ROC, AO, Pivots)
+                else {
+                    if (inds[id]) {
+                        if (!lineSeriesMap[id]) {
+                            lineSeriesMap[id] = chart.addLineSeries({
+                                color: ind.color, lineWidth: 1.5,
+                                priceScaleId: 'sub_' + id, scaleMargins: { top: 0.8, bottom: 0.02 }
+                            });
+                        }
+                        const pts = [];
+                        for (let i = 0; i < ts.length; i++) {
+                            const val = inds[id][i];
+                            if (val !== null && val !== undefined) pts.push({ time: ts[i], value: val });
+                        }
+                        lineSeriesMap[id].setData(pts);
+                    }
+                }
+            });
+        }
+
+        // ── Drawing Engine ───────────────────────────────────────────────────
+        function setDrawMode(m, el) {
+            drawMode = m; drawPoints = [];
+            document.querySelectorAll('.tv-tool-btn').forEach(b => b.classList.remove('active'));
+            if (el) el.classList.add('active');
+            const c = document.getElementById('chart-container');
+            if (m) c.classList.add('drawing-active'); else c.classList.remove('drawing-active');
+        }
+
+        function onChartClick(e) {
+            if (!drawMode || !chart) return;
+            const targetSeries = candleSeries || lineSeries || areaSeries;
+            if (!targetSeries) return;
+
+            const rect = document.getElementById('chart-container').getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const time = chart.timeScale().coordinateToTime(x);
+            const price = targetSeries.coordinateToPrice(y);
+            if (!time || !price) return;
+
+            if (drawMode === 'horiz') {
+                drawings.push({ type: 'horiz', price, color: '#f59e0b' });
+                setDrawMode(null, document.getElementById('tool-cursor'));
+                renderDrawings();
+            } else if (drawMode === 'trendline') {
+                drawPoints.push({ time, price, x, y });
+                if (drawPoints.length === 2) {
+                    drawings.push({
+                        type: 'trendline',
+                        time1: drawPoints[0].time, price1: drawPoints[0].price,
+                        time2: drawPoints[1].time, price2: drawPoints[1].price,
+                        color: '#2962ff'
+                    });
+                    setDrawMode(null, document.getElementById('tool-cursor'));
+                    renderDrawings();
+                }
+            }
+        }
+
+        function onChartMouseMove(e) {
+            if (drawMode === 'trendline' && drawPoints.length === 1) {
+                const rect = document.getElementById('chart-container').getBoundingClientRect();
+                renderDrawings({ x1: drawPoints[0].x, y1: drawPoints[0].y, x2: e.clientX - rect.left, y2: e.clientY - rect.top });
+            }
+        }
+
+        function renderDrawings(preview) {
+            const svg = document.getElementById('svg-overlay');
+            const targetSeries = candleSeries || lineSeries || areaSeries;
+            if (!svg || !chart || !targetSeries) return;
+            svg.innerHTML = '';
+
+            drawings.forEach(d => {
+                if (d.type === 'horiz') {
+                    const y = targetSeries.priceToCoordinate(d.price);
+                    if (y !== null) {
+                        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        line.setAttribute('x1', '0'); line.setAttribute('y1', y);
+                        line.setAttribute('x2', '100%'); line.setAttribute('y2', y);
+                        line.setAttribute('stroke', d.color); line.setAttribute('stroke-width', '1.5');
+                        line.setAttribute('stroke-dasharray', '4,3');
+                        svg.appendChild(line);
+
+                        const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                        txt.setAttribute('x', '10'); txt.setAttribute('y', y - 4);
+                        txt.setAttribute('fill', d.color); txt.setAttribute('font-size', '10'); txt.textContent = d.price.toFixed(2);
+                        svg.appendChild(txt);
+                    }
+                } else if (d.type === 'trendline') {
+                    const x1 = chart.timeScale().timeToCoordinate(d.time1);
+                    const y1 = targetSeries.priceToCoordinate(d.price1);
+                    const x2 = chart.timeScale().timeToCoordinate(d.time2);
+                    const y2 = targetSeries.priceToCoordinate(d.price2);
+                    if (x1 !== null && y1 !== null && x2 !== null && y2 !== null) {
+                        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+                        line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+                        line.setAttribute('stroke', d.color); line.setAttribute('stroke-width', '2');
+                        svg.appendChild(line);
+                    }
+                }
+            });
+
+            if (preview) {
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', preview.x1); line.setAttribute('y1', preview.y1);
+                line.setAttribute('x2', preview.x2); line.setAttribute('y2', preview.y2);
+                line.setAttribute('stroke', '#2962ff'); line.setAttribute('stroke-width', '2');
+                line.setAttribute('stroke-dasharray', '4,4');
+                svg.appendChild(line);
+            }
+        }
+
+        function clearDrawings() { drawings = []; renderDrawings(); }
+
+        async function saveAnalysis() {
+            if (!activeSymbol) return alert('Load a symbol first!');
+            const res = await api.save_analysis({ symbol: activeSymbol, drawings });
+            document.getElementById('save-status-msg').innerText = `✅ Saved ${drawings.length} drawing(s)`;
+        }
+
+        function fitRange(days) {
+            if (!chart || !chartDataCache) return;
+            const ts = chartDataCache.timestamps;
+            if (ts.length === 0) return;
+            const toTs = ts[ts.length - 1];
+            const fromTs = toTs - (days * 86400);
+            chart.timeScale().setVisibleRange({ from: fromTs, to: toTs });
+        }
+    </script>
+</body>
+</html>
